@@ -17,11 +17,14 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
+	"strings"
 
 	"dbbroker/pkg/apis"
 	"dbbroker/pkg/controller"
 	"dbbroker/pkg/webhook"
+	"github.com/spf13/viper"
 
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -33,6 +36,17 @@ import (
 func main() {
 	logf.SetLogger(logf.ZapLogger(false))
 	log := logf.Log.WithName("entrypoint")
+
+	viper.SetConfigName("config")
+	viper.AddConfigPath("config")
+	err := viper.ReadInConfig()
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+	viper.SetEnvPrefix("DBBROKER")
+
+	if err != nil {
+		panic(fmt.Errorf("fatal error config file: %s", err))
+	}
 
 	// Get a config to talk to the apiserver
 	log.Info("setting up client for manager")

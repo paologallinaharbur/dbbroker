@@ -20,21 +20,18 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // DbBrokerSpec defines the desired state of DbBroker
 type DbBrokerSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	DeploymentName      string `json:"deploymentName,omitempty"`
+	DeploymentNameSpace string `json:"deploymentNamespace,omitempty"`
+	ProjectID           string `json:"projectID,omitempty"`
 }
 
 // DbBrokerStatus defines the observed state of DbBroker
 type DbBrokerStatus struct {
-	Updated string `json:"updated,omitempty"`
-
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	Initialised bool   `json:"initialised,omitempty"`
+	Username    string `json:"username,omitempty"`
+	EndPoint    string `json:"endPoint,omitempty"`
 }
 
 // +genclient

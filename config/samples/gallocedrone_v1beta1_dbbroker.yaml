@@ -1,9 +1,0 @@
-apiVersion: gallocedrone.gallocedrone.io/v1beta1
-kind: DbBroker
-metadata:
-  labels:
-    controller-tools.k8s.io: "1.0"
-  name: dbbroker-sample
-spec:
-  # Add fields here
-  foo: bar

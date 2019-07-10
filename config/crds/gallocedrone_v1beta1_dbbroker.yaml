@@ -21,8 +21,22 @@ spec:
         metadata:
           type: object
         spec:
+          properties:
+            deploymentName:
+              type: string
+            deploymentNamespace:
+              type: string
+            projectID:
+              type: string
           type: object
         status:
+          properties:
+            endPoint:
+              type: string
+            initialised:
+              type: boolean
+            username:
+              type: string
           type: object
   version: v1beta1
 status:

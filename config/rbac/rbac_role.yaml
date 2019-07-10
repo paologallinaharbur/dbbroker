@@ -7,7 +7,19 @@ rules:
 - apiGroups:
   - apps
   resources:
-  - deployments
+  - Deployments
+  verbs:
+  - get
+  - list
+  - watch
+  - create
+  - update
+  - patch
+  - delete
+- apiGroups:
+  - ""
+  resources:
+  - Secrets
   verbs:
   - get
   - list

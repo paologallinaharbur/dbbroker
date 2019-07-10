@@ -19,163 +19,49 @@ package dbbroker
 import (
 	"context"
 	gallocedronev1beta1 "dbbroker/pkg/apis/gallocedrone/v1beta1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	"dbbroker/pkg/googlecloudsql"
+
+	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/runtime"
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
+	errorsAPI "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-/**
-* USER ACTION REQUIRED: This is a scaffold file intended for the user to modify with their own Controller
-* business logic.  Delete these comments after modifying this file.*
- */
-
-// Add creates a new DbBroker Controller and adds it to the Manager with default RBAC. The Manager will set fields on the Controller
-// and Start it when the Manager is Started.
-// USER ACTION REQUIRED: update cmd/manager/main.go to call this gallocedrone.Add(mgr) to install this Controller
 func Add(mgr manager.Manager) error {
 	return add(mgr, newReconciler(mgr))
 }
-func AddDeployment(mgr manager.Manager) error {
-	return addDeployment(mgr, newReconcilerDeployment(mgr))
-}
 
-// newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileDbBroker{Client: mgr.GetClient(), scheme: mgr.GetScheme()}
-}
-
-// newReconciler returns a new reconcile.Reconciler
-func newReconcilerDeployment(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileDbBrokerDeployment{Client: mgr.GetClient(), scheme: mgr.GetScheme()}
-}
-
-// add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
-	// Create a new controller
-	c, err := controller.New("dbbroker-controller", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to DbBroker
-	err = c.Watch(&source.Kind{Type: &gallocedronev1beta1.DbBroker{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// add adds a new Controller to mgr with r as the reconcile.Reconciler
-func addDeployment(mgr manager.Manager, r reconcile.Reconciler) error {
-	// Create a new controller
-	c, err := controller.New("dbbroker-controller-Deployment", mgr, controller.Options{Reconciler: r})
-	if err != nil {
-		return err
-	}
-
-	// Watch for changes to DbBroker
-	err = c.Watch(&source.Kind{Type: &appsv1.Deployment{}}, &handler.EnqueueRequestForObject{})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-var _ reconcile.Reconciler = &ReconcileDbBroker{}
-
-// ReconcileDbBroker reconciles a DbBroker object
-type ReconcileDbBroker struct {
-	client.Client
-	scheme *runtime.Scheme
-}
-
-// ReconcileDbBroker reconciles a DbBroker object
-type ReconcileDbBrokerDeployment struct {
-	client.Client
-	scheme *runtime.Scheme
-}
-
-// Reconcile reads that state of the cluster for a DbBroker object and makes changes based on the state read
-// and what is in the DbBroker.Spec
-// TODO(user): Modify this Reconcile function to implement your Controller logic.  The scaffolding writes
-// a Deployment as an example
-// Automatically generate RBAC rules to allow the Controller to read and write Deployments
-// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-// +kubebuilder:rbac:groups=gallocedrone.gallocedrone.io,resources=dbbrokers,verbs=get;list;watch;create;update;patch;delete
 func (r *ReconcileDbBroker) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	// Fetch the DbBroker instance
-	instance := &gallocedronev1beta1.DbBroker{}
-	err := r.Get(context.TODO(), request.NamespacedName, instance)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
-			return reconcile.Result{}, nil
-		}
-		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
-	}
-	instance.Status.Updated = "BARABBBAA"
-	err = r.Create(context.TODO(), instance)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-	return reconcile.Result{}, nil
-}
 
-func (r ReconcileDbBrokerDeployment) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	// Fetch the DbBroker instance
-	instance := &appsv1.Deployment{}
-	err := r.Get(context.TODO(), request.NamespacedName, instance)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
-			return reconcile.Result{}, nil
-		}
-		// Error reading the object - requeue the request.
+	// Fetch the DbBroker dbBrokerInstance
+	dbBrokerInstance := &gallocedronev1beta1.DbBroker{}
+	err := r.Get(context.TODO(), request.NamespacedName, dbBrokerInstance)
+	if err != nil && !errorsAPI.IsNotFound(err) {
+		log.Error(err)
 		return reconcile.Result{}, err
 	}
-
-	if instance.ObjectMeta.Annotations["dbbroker"] != "Requires-db" {
+	if errorsAPI.IsNotFound(err) {
+		err := r.cleanOldDb(request.NamespacedName)
+		return reconcile.Result{}, err
+	}
+	if dbBrokerInstance.Status.Initialised {
 		return reconcile.Result{}, nil
 	}
 
-	size := len(instance.Spec.Template.Spec.Containers[0].Env)
-
-	instance.Spec.Template.Spec.Containers[0].Env[size] = corev1.EnvVar{
-		Name:      "test",
-		Value:     "Succeed",
-		ValueFrom: nil,
-	}
-
-	err = r.Update(context.TODO(), instance)
+	logDbController("A dbBroker Changed:" + dbBrokerInstance.Name + "version: " + dbBrokerInstance.ResourceVersion)
+	err = r.creteNewDbAndPopulateInfo(dbBrokerInstance)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	ToBeCreated := &gallocedronev1beta1.DbBroker{
-		ObjectMeta: v1.ObjectMeta{
-			Name:      "Test",
-			Namespace: "dbbroker",
-		},
-		Spec: gallocedronev1beta1.DbBrokerSpec{},
-		Status: gallocedronev1beta1.DbBrokerStatus{
-			Updated: "True",
-		},
-	}
-	err = r.Create(context.TODO(), ToBeCreated)
+	dbBrokerInstance.Status.Initialised = true
+	err = r.Update(context.TODO(), dbBrokerInstance)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -183,71 +69,114 @@ func (r ReconcileDbBrokerDeployment) Reconcile(request reconcile.Request) (recon
 	return reconcile.Result{}, nil
 }
 
-/*func (r *ReconcileDbBroker) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	// Fetch the DbBroker instance
-	instance := &gallocedronev1beta1.DbBroker{}
-	err := r.Get(context.TODO(), request.NamespacedName, instance)
+func (r *ReconcileDbBroker) cleanOldDb(namespacedName types.NamespacedName) error {
+	err := googlecloudsql.DeleteInstances(viper.GetString("project.id"), namespacedName.Name+"-"+namespacedName.Namespace)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			// Object not found, return.  Created objects are automatically garbage collected.
-			// For additional cleanup logic use finalizers.
-			return reconcile.Result{}, nil
-		}
-		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
+		return err
+	}
+	logDbController("DB deleted")
+	return nil
+}
+
+func (r *ReconcileDbBroker) creteNewDbAndPopulateInfo(dbBrokerInstance *gallocedronev1beta1.DbBroker) error {
+
+	password, err := googlecloudsql.CreateInstances(viper.GetString("project.id"), dbBrokerInstance.Name+"-"+dbBrokerInstance.Namespace)
+	if err != nil {
+		log.Error(err)
+		return err
 	}
 
-	// TODO(user): Change this to be the object type created by your controller
-	// Define the desired Deployment object
-	deploy := &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      instance.Name + "-deployment",
-			Namespace: instance.Namespace,
+	ip, err := googlecloudsql.FetchIp(viper.GetString("project.id"), dbBrokerInstance.Name+"-"+dbBrokerInstance.Namespace, 1)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	username, noRootPassword, err := googlecloudsql.AddUser(viper.GetString("project.id"), dbBrokerInstance.Name+"-"+dbBrokerInstance.Namespace, 1)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	err = r.applySecret(dbBrokerInstance, password, noRootPassword)
+	if err != nil {
+		log.Error(err)
+		return err
+	}
+
+	dbBrokerInstance.Status.Username = username
+	dbBrokerInstance.Status.EndPoint = ip
+
+	return r.injectInfoDeployment(dbBrokerInstance, password, noRootPassword)
+}
+
+func (r *ReconcileDbBroker) injectInfoDeployment(dbBrokerInstance *gallocedronev1beta1.DbBroker, password string, noRootPassword string) error {
+	// Fetch the Deployment dbBrokerInstance
+	deploymentFound := &appsv1.Deployment{}
+	err := r.Get(context.TODO(), types.NamespacedName{Name: dbBrokerInstance.Spec.DeploymentName, Namespace: dbBrokerInstance.Spec.DeploymentNameSpace}, deploymentFound)
+	if err != nil {
+		log.Error("we just created a Db but the deployment cannot be fetched")
+		return err
+	}
+
+	deploymentToBeUpdated := checkIfInfoMissingAndPopulate(&deploymentFound.Spec.Template.Spec.Containers[0].Env, *dbBrokerInstance)
+
+	if !deploymentToBeUpdated {
+		return nil
+	}
+
+	err = r.Update(context.TODO(), deploymentFound)
+	if err != nil {
+		log.Error("We tried to inject the variables into the db without success")
+		return err
+	}
+	return nil
+}
+
+func (r *ReconcileDbBroker) applySecret(dbBrokerInstance *gallocedronev1beta1.DbBroker, password string, noRootPassword string) error {
+
+	controller := true
+
+	//Creating the secret
+	secret := &corev1.Secret{
+		TypeMeta: v1.TypeMeta{},
+		ObjectMeta: v1.ObjectMeta{
+			Name:      dbBrokerInstance.Name,
+			Namespace: dbBrokerInstance.Namespace,
+			OwnerReferences: append([]v1.OwnerReference{}, v1.OwnerReference{
+				APIVersion: "gallocedrone.gallocedrone.io/v1beta1",
+				Kind:       "DbBroker",
+				Name:       dbBrokerInstance.Name,
+				UID:        dbBrokerInstance.UID,
+				Controller: &controller,
+			}),
 		},
-		Spec: appsv1.DeploymentSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{"deployment": instance.Name + "-deployment"},
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{Labels: map[string]string{"deployment": instance.Name + "-deployment"}},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "nginx",
-							Image: "nginx",
-						},
-					},
-				},
-			},
-		},
-	}
-	if err := controllerutil.SetControllerReference(instance, deploy, r.scheme); err != nil {
-		return reconcile.Result{}, err
+		Data:       map[string][]byte{"DB_PASSWORD": []byte(password), "DB_PASSWORD_NO_ROOT": []byte(noRootPassword)},
+		StringData: nil,
+		Type:       "",
 	}
 
-	// TODO(user): Change this for the object type created by your controller
-	// Check if the Deployment already exists
-	found := &appsv1.Deployment{}
-	err = r.Get(context.TODO(), types.NamespacedName{Name: deploy.Name, Namespace: deploy.Namespace}, found)
-	if err != nil && errors.IsNotFound(err) {
-		log.Printf("Creating Deployment %s/%s\n", deploy.Namespace, deploy.Name)
-		err = r.Create(context.TODO(), deploy)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-	} else if err != nil {
-		return reconcile.Result{}, err
+	secretFound := &corev1.Secret{}
+	err := r.Get(context.TODO(), types.NamespacedName{Name: dbBrokerInstance.Name, Namespace: dbBrokerInstance.Spec.DeploymentNameSpace}, secretFound)
+	if err != nil && !errorsAPI.IsNotFound(err) {
+		log.Error("failed to fetch secret")
+		return err
 	}
+	if errorsAPI.IsNotFound(err) {
+		logDbController("We did not found the secret, therefore we create it")
+		return r.Create(context.TODO(), secret)
+	}
+	logDbController("We found the secret, therefore we update it")
+	if secretFound.Data["DB_PASSWORD"] != nil {
+		secret.Data["DB_PASSWORD"] = []byte(secretFound.Data["DB_PASSWORD"])
+	}
+	return r.Update(context.TODO(), secret)
+}
 
-	// TODO(user): Change this for the object type created by your controller
-	// Update the found object and write the result back if there are any changes
-	if !reflect.DeepEqual(deploy.Spec, found.Spec) {
-		found.Spec = deploy.Spec
-		log.Printf("Updating Deployment %s/%s\n", deploy.Namespace, deploy.Name)
-		err = r.Update(context.TODO(), found)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-	}
-	return reconcile.Result{}, nil
-}*/
+//TODO immutable fields https://github.com/kubernetes/kubernetes/issues/65973
+//TODO we should not force the user to attach the db to the first container
+//TODO DB without injection
+//TODO check if user added many times
+//TODO forbid dbbroker deletion to the user, only the controller should do it
+//TODO the controller now is running locally, create the image
+//TODO error management: delete Not found
