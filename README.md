@@ -4,7 +4,7 @@ It is a demo repository to add a controller managing a dbbroker CRD to provision
 
 Build making use of Kubebuilder tool
 
-It is described in this Medium article.
+It is described in this [Medium article](https://medium.com/@paolo.gallina/kubernetes-crd-and-controllers-to-manage-google-cloud-sql-dbs-91b7c1250a64).
 
 # Usage
 ` export GOOGLE_APPLICATION_CREDENTIALS = "/users/paologallina/Downloads/yourToken.json"`
